@@ -1,0 +1,24 @@
+{
+  "name": "avajs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@avalabs/avalanchejs": "^4.1.0-alpha.3",
+    "@avalanche-sdk/chainkit": "^0.3.13",
+    "@avalanche-sdk/client": "^0.1.1",
+    "viem": "^2.45.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.2.3",
+    "ts-jest": "^29.4.6"
+  }
+}
