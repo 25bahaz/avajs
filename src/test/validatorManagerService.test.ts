@@ -9,6 +9,14 @@ describe("Validator Manager Service Test", () => {
         validatorManagerService = new ValidatorManagerService()
     })
 
+    test("step_(-2) getPChainHeight", async () => {
+        const height = await validatorManagerService.getPChainHeight();
+        console.log(height);
+    })
+    test("step_(-1) get curent validators", async () => {
+        const validators = await validatorManagerService.getCurentValidatorListFromSubnet("11111111111111111111111111111111LpoYY");
+        console.log(validators);
+    })
     test("step_0 getBlockNumber:", async () => {
         const body = {
             jsonrpc: "2.0",
@@ -28,10 +36,14 @@ describe("Validator Manager Service Test", () => {
         return
     });
 
+    test("step_0.5 sendDummyPChainTx:", async () => {
+        await validatorManagerService.sendDummyPChainTx();
+    });
+
     test("step_1 initiateValidatorRegistration:", async () => {
         const txHash = await validatorManagerService.initiateValidatorRegistration(
-            "NodeID-7Xhw2mDxuDS44j42TCB6U5579esbSt3Lg",
-            "0xb3ebbe748a1f06d19ee25d4e345ba8d6b5a426498a140c2519b518e3e6224abd7895075892f361acf24c10af968bc7de",
+            "NodeID-MFrZFVCXPv5iCn6M9K6XduxGTYp891xXZ",
+            "0x8b49c4259529a801cc961c72248773b550379ff718a49f4ccc0e1f2ac338fe204432329aa1712f408f97eee12b22dd05",
             20n,
             "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC",
             "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
@@ -40,24 +52,24 @@ describe("Validator Manager Service Test", () => {
     });
     test("step_2 submitPChainTxRegisterValidator:", async () => {
         const pChainHash = await validatorManagerService.submitPChainTxRegisterValidator(
-            "0x134bfad2468266b0701e2d32af83839bd2eea692c3d079a60ae31bf1d4794de0",
-            20n,
-            "0xa2569a137e65d3a507c4f1f7ffac74ec05916ba44dfbbb84d42c2736a2bc1e8be14038d3aeeeac7c78e19ecdde69d830051959f22559641a3f9e42377d7f64580acdc383c5c9e22f7f1114712a543c6997d6dc59c88555423497d9fff41fa79a",
+            "0x17107204db047d5df056a40c6a7e42c2e9e3d32e349f70e53a41ffe92b49216b",
+            10000000000n,
+            "0xaf92674c3615d462527675da121b06023b116ddebc6e163919e562ab7cbe6adf20515cd2fc17c3e2d2d59953f285229e15f04302187bef5a4aa3ebdea1d18bf34047be654dd12491e882fb90b17b3cbde99ad43fc5cd0c26828bbe49a4b9456c",
         );
         console.log(pChainHash);
     });
     test("step_3 completeValidatorRegistration:", async () => {
         const txHash = await validatorManagerService.completeValidatorRegistration(
-            "2KyH1hVkKc94RASSuHPVNkE2gUimVeS3JM5u8THxBhT2nBhPog",
+            "2bfrKjUG2RZ9XuHyiau1FsMJ6NzZSwNRU9RWajcRdBowBuostx",
         );
         console.log(txHash);
     });
 
     test("step_all_in_one", async () => {
         await validatorManagerService.registerValidator(
-            "NodeID-7Xhw2mDxuDS44j42TCB6U5579esbSt3Lg",
-            "0xb3ebbe748a1f06d19ee25d4e345ba8d6b5a426498a140c2519b518e3e6224abd7895075892f361acf24c10af968bc7de",
-            "0xa2569a137e65d3a507c4f1f7ffac74ec05916ba44dfbbb84d42c2736a2bc1e8be14038d3aeeeac7c78e19ecdde69d830051959f22559641a3f9e42377d7f64580acdc383c5c9e22f7f1114712a543c6997d6dc59c88555423497d9fff41fa79a",
+            "NodeID-MFrZFVCXPv5iCn6M9K6XduxGTYp891xXZ",
+            "0x8b49c4259529a801cc961c72248773b550379ff718a49f4ccc0e1f2ac338fe204432329aa1712f408f97eee12b22dd05",
+            "0xaf92674c3615d462527675da121b06023b116ddebc6e163919e562ab7cbe6adf20515cd2fc17c3e2d2d59953f285229e15f04302187bef5a4aa3ebdea1d18bf34047be654dd12491e882fb90b17b3cbde99ad43fc5cd0c26828bbe49a4b9456c",
             20n,
             "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC",
             "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"

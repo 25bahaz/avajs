@@ -1,4 +1,5 @@
-import { AvalancheWalletClient, createAvalancheWalletClient, Hex } from "@avalanche-sdk/client"
+import { AvalancheWalletClient, AvalancheWalletCoreClient, Chain, createAvalancheWalletClient, Hex } from "@avalanche-sdk/client"
+
 import { privateKeyToAvalancheAccount } from "@avalanche-sdk/client/accounts";
 import { sendXPTransaction, Context } from "../utils/sendXPTransaction";
 

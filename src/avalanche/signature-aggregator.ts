@@ -4,6 +4,7 @@ import { QUORUM_PERCENTAGE, SUBNET_ID, SIGGNATURE_AGGREGATOR_URL } from "../cons
 
 interface SignatureAggregationParams {
     message: string,
+    pChainHeight?: number,
     justification?: string,
     signingSubnetId?: string,
     quorumPercentage?: number
@@ -27,6 +28,7 @@ export const aggregateSignature = async ({
     justification = '',
     signingSubnetId = SUBNET_ID,
     quorumPercentage = QUORUM_PERCENTAGE,
+    pChainHeight,
 }: SignatureAggregationParams
 ): Promise<SignatureAggregationResult> => {
 
@@ -34,9 +36,10 @@ export const aggregateSignature = async ({
         message,
         justification,
         'signing-subnet-id': signingSubnetId,
-        'quorum-percentage': quorumPercentage
+        'quorum-percentage': quorumPercentage,
+        'pchain-height': pChainHeight
     };
-
+    console.log(JSON.stringify(signatureAggregationRequest))
     const response = await fetch(`${SIGGNATURE_AGGREGATOR_URL}/aggregate-signatures`, {
         method: 'POST',
         headers: {

@@ -8,6 +8,7 @@ import {
   decodeAbiParameters,
   getContract,
   hexToBytes,
+  http,
   toHex,
   TransactionReceipt,
   type GetContractReturnType,
@@ -30,10 +31,22 @@ import {
   WARP_PRECOMPILE_ADDRESS,
 } from "./constants";
 import { AvalancheWalletClient, createAvalancheWalletClient } from "@avalanche-sdk/client";
+import { Avalanche } from "@avalanche-sdk/chainkit";
+import { avalanche } from '@avalanche-sdk/client/chains'
+import { avaxToNanoAvax } from '@avalanche-sdk/client/utils'
+import { getHRP } from "./avalanche/methods/registerL1Validator";
+import { Context, sendXPTransaction } from "./avalanche/utils/sendXPTransaction";
+
+export type getCurrentValidatorsResponse = {
+  result: {
+    validators: any[]
+  }
+}
 
 export class ValidatorManagerService {
   public validatorManagerAccount: AvalancheAccount;
   public walletClient: TakaschainWalletClient;
+  public pClient: AvalancheWalletClient;
   public validatorProxyContract: GetContractReturnType<
     typeof VALIDATOR_MANAGER_ABI,
     TakaschainWalletClient
@@ -46,6 +59,14 @@ export class ValidatorManagerService {
     this.walletClient = createTakaschainWalletClient(
       this.validatorManagerAccount,
     );
+    this.pClient = createAvalancheWalletClient({
+      account: this.validatorManagerAccount,
+      chain: NODEJS,
+      transport: {
+        type: "http",
+        url: "http://127.0.0.1:9650/ext/P",
+      },
+    })
     this.validatorProxyContract = getContract({
       address: "0x0Feedc0de0000000000000000000000000000000",
       abi: VALIDATOR_MANAGER_ABI,
@@ -110,6 +131,97 @@ export class ValidatorManagerService {
 
     throw new Error(`No justification log found for validationId ${validationId}`);
   }
+  public async getCurentValidatorListFromSubnet(subnetId: any) {
+    const res = await fetch("http://127.0.0.1:9650/ext/bc/P", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "platform.getCurrentValidators",
+        params: {
+          subnetID: subnetId,
+        },
+      }),
+    });
+
+    const data = await res.json() as getCurrentValidatorsResponse;
+    const validators = data?.result?.validators;
+
+    console.log("Validators found:", validators?.length);
+
+    if (validators?.length === 0) {
+      console.error(
+        "STOP: P-Chain sees 0 validators. RegisterL1ValidatorTx will fail."
+      );
+    }
+
+    return validators;
+  }
+  public async getPChainHeight() {
+    const res = await fetch("http://127.0.0.1:9650/ext/P", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "platform.getHeight",
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!data) {
+      console.error(
+        "STOP: P-Chain sees 0 validators. RegisterL1ValidatorTx will fail."
+      );
+    }
+
+    return data;
+  }
+  public async sendDummyPChainTx() {
+    const client = createAvalancheWalletClient({
+      account: this.validatorManagerAccount,
+      chain: NODEJS,
+      transport: {
+        type: "http",
+        url: "http://127.0.0.1:9650/ext/P",
+      },
+    })
+    const context: Context = {
+      networkID: 1337,
+      hrp: getHRP(1337),  // Local networks use "custom" HRP
+      xBlockchainID: "2XYkjHB237QcS4SjzuZZekcpFXXQDXYdVg7zqdwURV78XQcu3C",
+      pBlockchainID: "11111111111111111111111111111111LpoYY",
+      cBlockchainID: "5T24nSPnQ4WWiW5uC3SLYovGVRTNK9GRxXdHH5AoShGp1bR71",
+      avaxAssetID: "2kEMnZxZ6LXjVww7Mo4YgDo6o95igTmXvsT6k1aahmAscPMXTg",
+      baseTxFee: 1000000n,           // 0.001 AVAX
+      createAssetTxFee: 1000000n,    // 0.001 AVAX
+      platformFeeConfig: {
+        weights: [1, 1000, 1000, 4],
+        maxCapacity: 1000000n,
+        maxPerSecond: 100000n,
+        targetPerSecond: 50000n,
+        minPrice: 1n,
+        excessConversionConstant: 2164043n
+      }
+    };
+
+    const baseTx = await client.pChain.prepareBaseTxn({
+      outputs: [{
+        addresses: ["P-custom18jma8ppw3nhx5r4ap8clazz0dps7rv5u9xde7p"],
+        amount: avaxToNanoAvax(1),
+      }],
+      context
+    })
+
+    const res = await sendXPTransaction(client.pChain, {
+      tx: baseTx.tx,
+      chainAlias: 'P'
+    }, context)
+    console.log(res);
+
+  }
   //* -------------- VALIDATOR REGISTRATION -------------- *//
   public async registerValidator(
     nodeId: string,
@@ -170,7 +282,7 @@ export class ValidatorManagerService {
 
   public async submitPChainTxRegisterValidator(
     txHash: Hex,
-    weight: bigint,
+    balance: bigint,
     blsProofOfPossession: Hex,
   ): Promise<Hex> {
     const receipt = await this.walletClient.waitForTransactionReceipt({
@@ -204,18 +316,14 @@ export class ValidatorManagerService {
       console.log('Step 2 - unsignedWarpMessage (decoded):', unsignedWarpMessage.substring(0, 100) + '...');
       console.log('Step 2 - unsignedWarpMessage length:', unsignedWarpMessage.length);
 
-      const aggregatorResult = await aggregateSignature({ message: unsignedWarpMessage });
+      const pChainHeight: any = await this.getPChainHeight();
+      const aggregatorResult = await aggregateSignature({ message: unsignedWarpMessage, pChainHeight: Number(pChainHeight.result.height) });
       console.log('Step 2 - aggregatorResult:', aggregatorResult);
 
-      // Add 0x prefix directly - do NOT use toHex() which would convert ASCII to hex
-      const signedWarpMessage = aggregatorResult.signedMessage.startsWith('0x') 
-        ? aggregatorResult.signedMessage 
-        : `0x${aggregatorResult.signedMessage}` as Hex;
-      
       const pChainTxHash = await this.walletClient.registerL1Validator({
-        balance: weight,
+        balance,
         blsProofOfPossession: blsProofOfPossession,
-        signedWarpMessage: signedWarpMessage,
+        signedWarpMessage: `0x${aggregatorResult.signedMessage}`,
       });
 
       return pChainTxHash as Hex;
@@ -264,10 +372,12 @@ export class ValidatorManagerService {
     console.log('l1ValidatorRegistrationMessage', bytesToHex(l1ValidatorRegistrationMessage));
     console.log('justification from logs', bytesToHex(justification));
     // Use subnet validators to sign (like the Avalanche website does)
+    const pChainHeight: any = await this.getPChainHeight();
     const aggregatorResult = await aggregateSignature({
       message: bytesToHex(l1ValidatorRegistrationMessage),
       justification: bytesToHex(justification),
       signingSubnetId: SUBNET_ID,  // Use subnet validators
+      pChainHeight: Number(pChainHeight.result.height),
     });
     console.log('aggregatorResult.signedMessage:', aggregatorResult.signedMessage);
     const signedPChainWarpMsgBytes = hexToBytes(`0x${aggregatorResult.signedMessage}`);
