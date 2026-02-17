@@ -36,6 +36,7 @@ import { avalanche } from '@avalanche-sdk/client/chains'
 import { avaxToNanoAvax } from '@avalanche-sdk/client/utils'
 import { getHRP } from "./avalanche/methods/registerL1Validator";
 import { Context, sendXPTransaction } from "./avalanche/utils/sendXPTransaction";
+import { GetRegistrationJustification } from "./avalanche/utils/justification";
 
 export type getCurrentValidatorsResponse = {
   result: {
@@ -332,7 +333,12 @@ export class ValidatorManagerService {
     }
   }
 
-  public async completeValidatorRegistration(pChainTxHash: string): Promise<TransactionReceipt> {
+  /**
+   * Complete validator registration by submitting the P-Chain acknowledgment to L1.
+   * @param pChainTxHash - The P-Chain transaction hash from registerL1Validator
+   * @param messageIndex - Index of the warp message in the access list (default: 0, which is correct for single-message transactions)
+   */
+  public async completeValidatorRegistration(pChainTxHash: string, messageIndex: number = 0): Promise<TransactionReceipt> {
     const registrationMessageData =
       await this.walletClient.extractRegisterL1ValidatorMessage({
         txId: pChainTxHash,
@@ -367,7 +373,17 @@ export class ValidatorManagerService {
     );
 
     // Get justification from L1 chain logs (the InitiateValidatorRegistration event)
-    const justification = await this.getRegistrationJustificationFromLogs(validationId);
+    const justificationBytes = await GetRegistrationJustification(
+      validationId,           // validationIDHex: the validation ID as hex string
+      SUBNET_ID,              // subnetIDStr: the subnet ID
+      this.walletClient       // publicClient: has getBlockNumber() and getLogs()
+    );
+
+    if (!justificationBytes) {
+      throw new Error(`Failed to get justification for validationId ${validationId}`);
+    }
+
+    const justification = justificationBytes;
 
     console.log('l1ValidatorRegistrationMessage', bytesToHex(l1ValidatorRegistrationMessage));
     console.log('justification from logs', bytesToHex(justification));
@@ -377,35 +393,85 @@ export class ValidatorManagerService {
       message: bytesToHex(l1ValidatorRegistrationMessage),
       justification: bytesToHex(justification),
       signingSubnetId: SUBNET_ID,  // Use subnet validators
-      pChainHeight: Number(pChainHeight.result.height),
+      pChainHeight: Number(pChainHeight.result.height) - 2,
     });
     console.log('aggregatorResult.signedMessage:', aggregatorResult.signedMessage);
     const signedPChainWarpMsgBytes = hexToBytes(`0x${aggregatorResult.signedMessage}`);
     console.log('signedPChainWarpMsgBytes length:', signedPChainWarpMsgBytes.length);
     const accessList = packWarpIntoAccessList(signedPChainWarpMsgBytes);
     console.log('accessList:', JSON.stringify(accessList, null, 2));
+    console.log(`Using warp message index: ${messageIndex} (should be 0 for single-message transactions)`);
 
-    const txHash =
-      await this.validatorProxyContract.write.completeValidatorRegistration(
-        [0],
-        {
-          account: this.validatorManagerAccount.evmAccount,
-          chain: NODEJS,
-          accessList: accessList,
-        },
-      );
+    console.log('📤 Preparing transaction data...');
+
+    // Encode the function call manually
+    const { encodeFunctionData } = await import('viem');
+    const data = encodeFunctionData({
+      abi: VALIDATOR_MANAGER_ABI,
+      functionName: 'completeValidatorRegistration',
+      args: [messageIndex]
+    });
+    console.log('Encoded data:', data);
+
+    // Prepare transaction request
+    const txRequest = {
+      account: this.validatorManagerAccount.evmAccount,
+      to: this.validatorProxyContract.address,
+      data: data as `0x${string}`,
+      chain: NODEJS,
+      accessList: accessList,
+      gas: 8000000n,
+      maxFeePerGas: 25000000000n,
+      maxPriorityFeePerGas: 1000000000n,
+    };
+
+    console.log('Transaction request prepared:', {
+      to: txRequest.to,
+      from: txRequest.account.address,
+      gas: txRequest.gas.toString(),
+      accessList: txRequest.accessList
+    });
+
+    // Send the transaction using walletClient directly
+    console.log('Sending raw transaction...');
+    const txHash = await this.walletClient.sendTransaction(txRequest);
+
+    console.log('✅ Transaction sent! Hash:', txHash);
+
+    // Quick check - does the transaction exist?
+    console.log('Verifying transaction was broadcast...');
+    try {
+      const sentTx = await this.walletClient.getTransaction({ hash: txHash });
+      console.log('✅ Transaction found in mempool/chain:', {
+        blockNumber: sentTx.blockNumber,
+        blockHash: sentTx.blockHash,
+        from: sentTx.from,
+        to: sentTx.to
+      });
+    } catch (err: any) {
+      console.error('❌ WARNING: Transaction not found immediately after sending!', err?.message);
+    }
+
+    console.log('⏳ Waiting for transaction receipt for tx:', txHash);
 
     const receipt = await this.walletClient.waitForTransactionReceipt({
       hash: txHash,
+      timeout: 60_000, // 60 second timeout
     });
 
-    console.log('receipt', receipt);
+    console.log('Receipt received:', {
+      status: receipt.status,
+      blockNumber: receipt.blockNumber,
+      gasUsed: receipt.gasUsed,
+      transactionHash: receipt.transactionHash
+    });
 
     if (receipt.status === "success") {
-      console.log("Validator registration completed successfully!");
+      console.log("✅ Validator registration completed successfully!");
       return receipt;
     } else {
-      throw new Error("Validator registration failed");
+      console.error("❌ Transaction reverted. Receipt:", receipt);
+      throw new Error("Validator registration transaction reverted");
     }
   }
 }
