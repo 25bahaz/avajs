@@ -14,6 +14,7 @@
     "@avalabs/avalanchejs": "^4.1.0-alpha.3",
     "@avalanche-sdk/chainkit": "^0.3.13",
     "@avalanche-sdk/client": "^0.1.1",
+    "bs58": "^6.0.0",
     "viem": "^2.45.3"
   },
   "devDependencies": {

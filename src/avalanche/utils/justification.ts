@@ -330,7 +330,7 @@ export async function GetRegistrationJustification(
                 fromBlock: BigInt(fromBlockNum),
                 toBlock: toBlock === 'latest' ? toBlock : BigInt(Number(toBlock)),
             });
-
+            console.log("------- block height -------: ", warpLogs[0].blockNumber)
             if (warpLogs.length > 0) {
                 for (const log of warpLogs.slice().reverse()) {
                     try {

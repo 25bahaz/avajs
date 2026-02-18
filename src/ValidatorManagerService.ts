@@ -371,7 +371,6 @@ export class ValidatorManagerService {
       1337,
       "11111111111111111111111111111111LpoYY", // always use P-Chain ID
     );
-
     // Get justification from L1 chain logs (the InitiateValidatorRegistration event)
     const justificationBytes = await GetRegistrationJustification(
       validationId,           // validationIDHex: the validation ID as hex string
@@ -387,14 +386,17 @@ export class ValidatorManagerService {
 
     console.log('l1ValidatorRegistrationMessage', bytesToHex(l1ValidatorRegistrationMessage));
     console.log('justification from logs', bytesToHex(justification));
+    
     // Use subnet validators to sign (like the Avalanche website does)
     const pChainHeight: any = await this.getPChainHeight();
+    console.log("------- aggregator block height -------: ", pChainHeight.result.height)
     const aggregatorResult = await aggregateSignature({
       message: bytesToHex(l1ValidatorRegistrationMessage),
       justification: bytesToHex(justification),
       signingSubnetId: SUBNET_ID,  // Use subnet validators
-      pChainHeight: Number(pChainHeight.result.height) - 2,
+      pChainHeight: Number(pChainHeight.result.height),
     });
+    await new Promise(r => setTimeout(r, 10000));
     console.log('aggregatorResult.signedMessage:', aggregatorResult.signedMessage);
     const signedPChainWarpMsgBytes = hexToBytes(`0x${aggregatorResult.signedMessage}`);
     console.log('signedPChainWarpMsgBytes length:', signedPChainWarpMsgBytes.length);
