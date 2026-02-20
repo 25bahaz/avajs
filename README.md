@@ -12,8 +12,10 @@
 - change blockchain owner address
 - add address to transaction allowlist
 - add address to contract deployer allowlist
+- add address to native minter allowlist
 - remove address from transaction allowlist
 - remove address from contract deployer allowlist
+- remove address from native minter allowlist
 
 **fee config manager service**
 - change fee config
@@ -21,6 +23,9 @@
 **native token mint service**
 - mint native token
 - burn native token
+- total supply
+- mint history
+- burn history
 
 **utils**
 - unit converter
