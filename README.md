@@ -25,6 +25,7 @@
 **utils**
 - unit converter
 - encode/decode (base58, cb58, hex etc.)
+- text compare (araxis merge)
 
 ---------- phase 2 ----------
 
